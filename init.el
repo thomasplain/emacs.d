@@ -148,6 +148,144 @@
 (require 'init-local nil t)
 
 
+(defun set-window-width (n)
+  "Set the selected window's width."
+  (adjust-window-trailing-edge (selected-window) (- n (window-width)) t))
+
+(defun set-80-columns ()
+  "Set the selected window to 80 columns."
+  (interactive)
+  (set-window-width 80))
+
+(global-set-key "\C-x~" 'set-80-columns)
+
+
+(global-set-key "\M-?" 'help-command)
+(global-set-key "\C-h" 'delete-backward-char)
+
+(put 'eval-expression 'disabled nil)
+
+(global-set-key "\C-x\C-n" 'other-window)
+
+(defun other-window-backward (&optional n)
+  "Select Nth previous window"
+  (interactive "P")
+  (other-window (- (prefix-numeric-value n))))
+
+(global-set-key "\C-x\C-p" 'other-window-backward)
+
+(defalias 'scroll-ahead 'scroll-up)
+(defalias 'scroll-behind 'scroll-down)
+
+(defun scroll-n-lines-ahead (&optional n)
+  "Scroll ahead N lines"
+  (interactive "P")
+  (scroll-ahead (prefix-numeric-value n)))
+
+(defun scroll-n-lines-behind (&optional n)
+  "Scroll behind N line"
+  (interactive "P")
+  (scroll-behind (prefix-numeric-value n)))
+
+(global-set-key "\C-q" 'scroll-n-lines-behind)
+(global-set-key "\C-z" 'scroll-n-lines-ahead)
+
+(global-set-key "\C-x\C-q" 'quoted-insert)
+
+(defun point-to-top ()
+  "Put point on top line of window"
+  (interactive)
+  (move-to-window-line 0))
+
+(global-set-key "\M-," 'point-to-top)
+(global-set-key "\C-x," 'tags-loop-continue)
+
+(defun point-to-bottom ()
+  "Put point at beginning of last visible line"
+  (interactive)
+  (move-to-window-line -1))
+
+(global-set-key "\M-." 'point-to-bottom)
+(global-set-key "\C-x." 'find-tag)
+
+(add-hook 'find-file-hooks
+          '(lambda ()
+             (if (file-symlink-p buffer-file-name)
+                 (progn
+                   (set buffer-read-only t)
+                   (message "File is a symlink")))))
+
+(defun visit-target-instead ()
+  "Replace this buffer with a buffer visiting the link target"
+  (interactive)
+  (if buffer-file-name
+      (let ((target (file-symlink-p buffer-file-name)))
+        (if target
+            (find-alternate-file target)
+          (error "Not visiting a symlink")))
+    (error "Not visiting a file")))
+
+(defun clobber-symlink ()
+  "Replace symlink witha  copy of the file"
+  (interactive)
+  (if buffer-file-name
+      (let ((target (file-symlink-p buffer-file-name)))
+        (if target
+            (if (yes-or-no-p (format "Replace %s with %s?"
+                                     buffer-file-name
+                                     target))
+                (progn
+                  (delete-file buffer-file-name)
+                  (write-file buffer-file-name)))
+          (error "Not visiting a symlink")))
+    (error "Not visiting a file")))
+
+(defadvice switch-to-buffer (before existing-buffer
+                                    activate compile)
+  "When interactive, switch to existing buffers only."
+  (interactive
+   (list (read-buffer "Switch to buffer: "
+                      (other-buffer)
+                      (null current-prefix-arg)))))
+
+(defvar unscroll-point (make-marker)
+  "Text position for next call to 'unscroll'")
+
+(defvar unscroll-window-start (make-marker)
+  "Window start for next call to 'unscroll'.")
+
+(put 'scroll-up 'unscrollable t)
+(put 'cua-scroll-up 'unscrollable t)
+(put 'scroll-down 'unscrollable t)
+(put 'cua-scroll-down 'unscrollable t)
+
+(defun unscroll-maybe-remember ()
+  (if (not (get last-command 'unscrollable))
+      (progn
+        (set-marker unscroll-point (point))
+        (set-marker unscroll-window-start (window-start)))))
+
+(defadvice scroll-up (before remember-for-unscroll
+                             activate compile)
+  "Remember where we started from, for 'unscroll'"
+  (unscroll-maybe-remember))
+
+(defadvice scroll-down (before remember-for-unscroll
+                               activate compile)
+  "Remember where we started from, for 'unscroll'"
+  (unscroll-maybe-remember))
+
+
+(defun unscroll ()
+  "Jump to location specified by 'unscroll-to'."
+  (interactive)
+  (if (not unscroll-point)
+      (error "Cannot unscroll yet")
+    (progn
+      (goto-char unscroll-point)
+      (set-window-start nil unscroll-window-start))))
+
+
 ;;----------------------------------------------------------------------------
 ;; Locales (setting them earlier in this file doesn't work in X)
 ;;----------------------------------------------------------------------------
